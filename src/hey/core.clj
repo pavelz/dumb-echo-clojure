@@ -3,6 +3,11 @@
 
 
 (require '[clojure.java.io :as io])
+(require '[clj-postgresql.core :as pg])
+(require '[clojure.java.jdbc :as jdbc])
+
+(def db2 (delay(pg/pool :host "localhost" :user "pavel" :dbname "insta-go" :password "321pavel")))
+
 (import '[java.net ServerSocket])
 
 (defn receive
@@ -18,23 +23,44 @@
       (.flush writer)))
 
 (defn serve [port handler]
-  (with-open [server-sock (ServerSocket. port)
-              sock (.accept server-sock)]
-    (loop [condit true]
-      (do
-        (let [msg-in (receive sock)
-              msg-out (handler msg-in)]
-          (send sock msg-out))
-        (recur ()
-        ))
+  (let [running [atom true]]
+    (future
+      (with-open [server-sock (ServerSocket. port) ]
+        (while @running
+          (with-open [sock (.accept server-sock)]
+            (loop []
+              (do
+                (println "READ")
+                (let [msg-in (receive sock)
+                      msg-out (handler msg-in)]
+                  (send sock msg-out))
+                (recur)
+                )
+              )
+            )
+          )
+        )
+      )
     )
   )
-)
 
-(defn handle [msg]
+(defn serve-persistent [port handler]
+  (let [running (atom true)]
+    (future
+      (with-open [server-sock (ServerSocket. port)]
+        (while @running
+          (with-open [sock (.accept server-sock)]
+            (let [msg-in (receive sock)
+                  msg-out (handler msg-in)]
+              (send sock msg-out))))))
+    running))
+
+(defn handle 
+  "send messages received back"
+  [msg]
   (do
     (println msg)
-    "hello from clojure!"
+    (str msg "\n")
     )
   )
 
@@ -45,11 +71,12 @@
 (defn -main 
   "I don't do a whole lot ... yet."
   [& args]
-  (messenger "heyhhoio\n")
-  (loop [condition true]
-    (do
-      (serve 8000 handle)
-      (recur ())
-      )
-    )
+  (messenger "Remote SQL qurey runner\n")
+
+  (let [result (jdbc/query @db2 ["SELECT 1"])]
+    (prn result)
+  )
+
+      (def a (serve 8888 #(.toUpperCase %)))
+
   )
