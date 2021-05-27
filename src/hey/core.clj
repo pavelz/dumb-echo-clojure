@@ -44,15 +44,19 @@
     )
   )
 
-(defn serve-persistent [port handler]
+(defn serve-persistent [^long port handler]
   (let [running (atom true)]
     (future
       (with-open [server-sock (ServerSocket. port)]
         (while @running
           (with-open [sock (.accept server-sock)]
+            (loop []
             (let [msg-in (receive sock)
                   msg-out (handler msg-in)]
-              (send sock msg-out))))))
+              (send sock (str msg-out "\n")))
+              (recur)
+            ))))
+          )
     running))
 
 (defn handle 
@@ -77,6 +81,6 @@
     (prn result)
   )
 
-      (def a (serve 8888 #(.toUpperCase %)))
+      (def a (serve-persistent 8888 #(.toUpperCase %)))
 
   )
